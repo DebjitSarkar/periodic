@@ -17,24 +17,26 @@
 
 %% Inputs
 Ptol = 1; % Input power tolerance
-Dm = 10; % Depth of modulation for saw, +/- to admittance
-Y_C = 1j * 50; % Admittance of tunable capacitor
-Y_L = -1j * 50; % Admittance of fixed inductor
+Dm = 100e-12; % Depth of modulation for saw, +/- to capacitance
+C0 = 101e-12; % For example
 
-T_saw = 50; % Number of values in one saw period
+%Y_C = 1j * 50; % Admittance of tunable capacitor
+%Y_L = -1j * 50; % Admittance of fixed inductor
 
 %% Setup
 f = 10e9;
 w = 2 * pi * f;
+L0 = 1 / (w^2 * C0);
 
-Y_Cmin = Y_C - 1j * Dm;
-Y_Cmax = Y_C + 1j * Dm;
+T_saw = 50; % Number of values in one saw period
 
-%Y_Call = [linspace(Y_C, Y_Cmax, T_saw * 0.5), linspace(Y_Cmin , Y_Cmax, T_saw), linspace(Y_Cmin, Y_C, T_saw * 0.5)];
-Y_Call = linspace(Y_Cmin, Y_Cmax, T_saw);
+Call = linspace(C0 - Dm, C0 + Dm, T_saw);
+Yall = 1./(1/(1j*w*L0)+1j*w*Call);
 
-%syms Y;
-%T_saw = 1;
+%Y_Cmin = Y_C - 1j * Dm;
+%Y_Cmax = Y_C + 1j * Dm;
+
+%Y_Call = linspace(Y_Cmin, Y_Cmax, T_saw);
 
 toggle = true;
 phase_min = 0; % in degrees
@@ -44,7 +46,8 @@ phase_vec = zeros(1,T_saw);
 %% Computation
 
 for foo = 1:T_saw
-    Y = Y_Call(foo) + Y_L;
+    %Y = Y_Call(foo) + Y_L;
+    Y = Yall(foo);
     
     BL = pi / 4;
     Z0 = 50;
@@ -52,7 +55,8 @@ for foo = 1:T_saw
         1j*sin(BL)/Z0, cos(BL)];
     shunt_ABCD = [1 0; Y 1];
     
-    full_ABCD = TL_ABCD * shunt_ABCD * TL_ABCD;
+    full_ABCD = TL_ABCD * shunt_ABCD * TL_ABCD; % ABCD for 1 segment
+    
     %full_S = abcd2s(full_ABCD, Z0);
     A = full_ABCD(1,1);
     B = full_ABCD(1,2);
@@ -66,9 +70,9 @@ for foo = 1:T_saw
     
     phase = rad2deg(wrapTo2Pi(angle(S21)));
     
-    phase_vec(foo) = phase;
+    phase_vec(foo) = phase; % Write phase for plotting
     
-    if(toggle)
+    if(toggle) % Update phase min/max
         phase_min = phase;
         phase_max = phase;
         toggle = false;
@@ -83,10 +87,14 @@ end
 %% Display one segment
 figure;
 hold on;
-scatter(imag(Y_Call), phase_vec);
-title('Phase range vs Y_C');
-xlabel('Y_C [1/\omega]');
+scatter(Call, phase_vec);
+title('Phase range vs C');
+xlabel('C [F]');
 ylabel('Phase [\circ]');
+
+%scatter(imag(Y_Call), phase_vec);
+%title('Phase range vs Y_C');
+%xlabel('Y_C [1/\omega]');
 
 %% Outputs
 % C = 1; % Center capacitance
