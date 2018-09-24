@@ -24,11 +24,12 @@ C0 = 101e-12; % For example
 f = 10e9;
 w = 2 * pi * f;
 L0 = 1 / (w^2 * C0);
-
+BL = pi / 4;
+Z0 = 50;
 T_saw = 50; % Number of values in one saw period
 
 Call = linspace(C0 - Dm, C0 + Dm, T_saw);
-Yall = 1./(1/(1j*w*L0)+1j*w*Call);
+Yall = (1/(1j*w*L0)+1j*w*Call);
 
 toggle = true; % Used to initialize phase_min/max
 phase_min = 0; % in degrees
@@ -43,8 +44,6 @@ for foo = 1:T_saw
     %Y = Y_Call(foo) + Y_L;
     Y = Yall(foo);
     
-    BL = pi / 4;
-    Z0 = 50;
     TL_ABCD = [cos(BL), 1j*Z0*sin(BL);
         1j*sin(BL)/Z0, cos(BL)];
     shunt_ABCD = [1 0; Y 1];
@@ -81,6 +80,22 @@ ylabel('Phase [\circ]');
 
 %% Determine minimum number of segments
 % Will brute force for several stages first
+N_max = 5; % Max number of stages used
+
+S_cascade(:,:,1:T_saw) = zeros(2,2,T_saw);
+ABCD_cascade(:,:,1:T_saw) = zeros(2,2,T_saw);
+phase_cascade = zeros(1,T_saw);
+
+for foo = 1:N_max
+    for bar = 1:T_saw
+       ABCD_cascade(:,:,bar) = ABCD_vec(:,:,bar)^foo;
+       S_cascade(:,:,bar) = abcd2s(ABCD_cascade(:,:,bar), Z0);
+    end
+    phase_cascade(:) = rad2deg(angle(S_cascade(2,1,:)));
+    figure;
+    hold on;
+    scatter(1:T_saw, phase_cascade);
+end
 
 %% Outputs
 % C = 1; % Center capacitance
