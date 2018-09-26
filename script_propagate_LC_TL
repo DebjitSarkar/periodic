@@ -1,0 +1,183 @@
+% Cody Scarborough
+% 2018
+clear all
+%% User Parameters
+% Preset Variables
+f0=1e9; % excitation frequency
+fs=5e5*(pi/3.14); % system variation frequency
+dm=0.2; % modulation depth
+% To be determined by prior code
+bZ0=5.775; % wr*C*Z0
+Ncas=6; % Number of Cascaded networks
+
+%% Developer Parameters
+Nh=150; % Number of harmonics to characterize in simulation
+Nh_modulation=10; % number of harmonics to include in the modulation
+Z0=50; % characteristic impedance of TL section
+shape='saw'; % profile of modulation (cos,saw,pulse)
+shp=[0.3]; % parameters corresponding to modulation (e.g. duty cycle for pulse)
+el_deg=90; % combinded electrical length of transmission line
+lents=5000; % length of plotted temporal signals
+tsf_Ts=3; % final time for cap plotting
+t0f_T0=100; % final time for signal plotting
+mindB=-35; % minimum Power level for spectrum plotting
+n_des=-1; % desired phase shift for RMS voltage calculation
+
+%% Derived Parameters
+% Logistic Parameters
+zroa=Nh+1; zrob=2*Nh+1;
+n=-Nh:Nh; lenn=length(n);
+w0=2*pi*f0; ws=2*pi*fs;
+el=el_deg/180*pi;
+T0=1/f0;
+% System Characteristics
+C0=bZ0/w0/Z0;
+L0=1/(w0^2*C0);
+
+%% Build Periodic Waveform
+a=norm_periodic_coeffs(Nh,shape,0,shp);
+a(abs(n)>Nh_modulation)=0; % Truncate harmonics to the amount specified
+
+%% Build Time Varying Capacitor
+p=C0.*(1.*(n==0)+dm.*a); % C(t)=C0*( 1 + dm*profile(t) )
+pb=zeros(1,4*Nh+1);
+pb(zrob+n)=p;
+
+%% Obtain Harmonic Transmission Matrix
+[Mm,Nm]=meshgrid(n,n);
+P=pb(zrob+Nm-Mm);
+W=diag(w0+n.*ws);
+Wi=diag(1./(w0+n.*ws));
+CosT=diag(cos(el.*(1+ws/w0.*n)./2));
+SinT=diag(sin(el.*(1+ws/w0.*n)./2));
+Tsys=    [CosT,1j*Z0*SinT;1j/Z0*SinT,CosT]... % Series TL
+        *[eye(lenn),zeros(lenn);1j*(W*P-Wi./L0),eye(lenn)]... % Shunt LC Resonator
+        *[CosT,1j*Z0*SinT;1j/Z0*SinT,CosT]; % Series TL
+
+%% Obtain Eigen vector and values for faster cascading
+[V,D]=eig(Tsys);
+dv=diag(D);
+
+%% Obtain Cascaded Transmission Matrix
+Tcas=V*diag(dv.^Ncas)/V;
+indv=1:lenn;
+Acas=Tcas(0*lenn+indv,0*lenn+indv); Bcas=Tcas(0*lenn+indv,1*lenn+indv);
+Ccas=Tcas(1*lenn+indv,0*lenn+indv); Dcas=Tcas(1*lenn+indv,1*lenn+indv);
+
+%% Obtain potential at input and output ports (matched gen. and load)
+Vg=2.*(n==0).';
+V2=(Acas+Bcas./Z0+Z0.*Ccas+Dcas)\Vg;
+V1=(Acas+Bcas./Z0)*V2;
+
+%% Post Processing
+Pavs=1/2/Z0;
+P2=abs(V2).^2./2./Z0;
+P2n=P2./Pavs;
+if min(P2n)<0
+    fprintf('Uh-oh, power being generated from resistor...\n')
+end
+P2dB=max(10.*log10(abs(P2n)),mindB);
+
+%% Build Time Domain Signals
+tsn=linspace(0,tsf_Ts,lents);
+t0n=linspace(-1,t0f_T0,lents);
+[Tsnm,Nsm]=meshgrid(tsn,n);
+[T0nm,~]=meshgrid(t0n,n);
+% Capacitance
+Ct=sum(p(zroa+Nsm).*exp(1j.*2.*pi.*Nsm.*Tsnm),1);
+if max(abs(imag(Ct)))>(C0*1e-6)
+    fprintf('Uh-oh, imaginary signal for capacitance!!??\n')
+else
+    Ct=real(Ct);
+end
+% Output potential
+V2t=sum(V2(zroa+Nsm).*exp(1j.*2.*pi.*(1+Nsm.*fs./f0).*T0nm),1);
+V2t=real(V2t);
+% Incident potential
+Vipt=cos(2.*pi.*t0n);
+
+%% Envelope Calculation
+dt0n=t0n(2)-t0n(1);
+dt=T0*dt0n;
+Tconv=1./(f0-n_des*fs);
+nsamp=round(Tconv/dt);
+Vrms=zeros(1,lents);
+Vsqr=abs(V2t).^2;
+for m=nsamp+1:lents
+    Vrms(m)=sum(sqrt(Vsqr((m-nsamp):m))).*dt./Tconv;
+end
+Vrms(1:nsamp)=Vrms(nsamp+1);
+Venv=sqrt(2).*Vrms;
+
+%% Printing 
+fprintf('C0=%0.3e\n',C0);
+fprintf('L0=%0.3e\n',L0);
+fprintf('Transmit Pow @ f=f0-fs : %0.3f\n',P2dB(zroa-1));
+fprintf('Transmit Pow @ f=f0    : %0.3f\n',P2dB(zroa));
+fprintf('Transmit Pow @ f=f0+fs : %0.3f\n',P2dB(zroa+1));
+
+%% Plotting
+% Time variation of capacitor ---------------------------------------------
+figure(1)
+hold off
+plot(tsn,Ct)
+xlabel('t / T_s')
+ylabel('C(t) [Farads]')
+ylim([0,2*C0])
+grid on
+title('Time Variation of Capacitor in First Cell')
+
+% Spectrum of Power at the Output -----------------------------------------
+figure(2)
+hold off
+stm1=stem(n,P2dB);
+ylabel('P_{out} / P_{avs} [dB]')
+xlabel('Harmonic Coefficient')
+xlim([-10,10])
+ylim([mindB,0])
+set(stm1,'BaseValue',mindB)
+grid on
+title('Power Spectrum of Output')
+
+% Time domain potentials
+figure(3)
+hold off
+plot(t0n,Vipt)
+hold on
+plot(t0n,V2t)
+plot(t0n,Venv,'k--')
+legend('V_{inc}','V_{out}','Output Envelope')
+xlabel('t / T_0')
+ylabel('Volts')
+xlim([0,10])
+title('Time Domain Voltage Signals')
+grid on
+
+% Time domain potentials
+figure(4)
+plot(t0n,Venv)
+xlabel('t / T_0')
+ylabel('Volts')
+xlim([0,t0n(end)])
+ylim([0,2])
+title('Output Envelope vs Time')
+grid on
+
+%% Functions
+function a=norm_periodic_coeffs(Nh,shape,dT,shape_params)
+% Shape Parameters
+%   pulse   [duty_cycle]
+    %% Derived Parameters
+    sp=shape_params;
+    n=-Nh:Nh;
+    lenn=length(n);
+    a=zeros(1,lenn);
+    if strcmp(shape,'saw')==1
+        a(n~=0)=1j./(pi.*n(n~=0));
+    elseif strcmp(shape,'pulse')==1
+        a=-1.*(n==0)+2.*sp(1).*sinc(sp(1).*n).*exp(-1j.*pi.*sp(1).*n);
+    elseif strcmp(shape,'cos')==1
+        a(n==1)=0.5; a(n==-1)=0.5;
+    end
+    a=a.*exp(-1j.*2.*pi.*dT.*n);
+end
