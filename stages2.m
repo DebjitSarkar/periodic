@@ -17,13 +17,14 @@
 %
 
 %% Inputs
-
 Ptol = 0.5; % Power tolerance
 Dm = 0.2; % Modulation depth as %-tage of C
 Nmax = 30; % Maximum number of stages considered
-Clen = 2000; % Number of values used for C
+Clen = 250; % Number of values used for C
 
 %% Setup
+digits(15); % Used to speed up symbolic calculations, default = 32
+
 BL = pi / 4;
 Z0 = 50;
 Y0 = 1 / Z0;
@@ -48,32 +49,55 @@ assert(double(vpa(abs(qq - 1))) < 1e-6, 'Determinant =/= 1');
 %%
 Zrange = linspace(0, 1/10, Clen); % 2000 pts for Z_C = [0,10]
 Crange = Zrange / w;
-Cinit = 1e-12; % Start
-Cincr = 1e-12; % Increment by
-Ccurr = 1e-12; % Current value
-L0 = 1 / (w^2 * Ccurr);
-
-S21new = subs(S21, 'L', L0);
-
-S21a = subs(S21new, 'C', Ccurr * (1 + Dm));
-S21b = subs(S21new, 'C', Ccurr * (1 - Dm));
-
-phia = angle(S21a);
-phib = angle(S21b);
-
-diff = double(abs(rad2deg(vpa(phib - phia))));
-diff
+% Ccurr = 1e-12; % Current value
+%
+% S21new = subs(S21, 'L', 1 / (w^2 * Ccurr));
+%
+% S21a = subs(S21new, 'C', Ccurr * (1 + Dm));
+% S21b = subs(S21new, 'C', Ccurr * (1 - Dm));
+%
+% phia = angle(S21a);
+% phib = angle(S21b);
+%
+% diff = double(abs(rad2deg(vpa(phib - phia))));
+% diff
 
 % for each n, find optimal c for 360 degrees
 % increase n until you reach the power tolerance
 
 %% Main loop
+diffs = zeros(1,Clen);
 
 for N = 1:Nmax
+    ABCD_new = ABCD ^ N;
+    S21 = 2/(ABCD_new(1,1)+ABCD_new(1,2)/Z0+ABCD_new(2,1)*Z0+ABCD_new(2,2));
     for i = 1:Clen
+        S21new = subs(S21, 'L', 1 / (w^2 * Crange(i)));
+        
+        S21a = subs(S21new, 'C', Crange(i) * (1 + Dm));
+        S21b = subs(S21new, 'C', Crange(i) * (1 - Dm));
+        
+        diff = double(abs(rad2deg(vpa(angle(S21b) - angle(S21a)))));
         % Find vector of diffs
+        diffs(i) = diff;
+        if(mod(i, 75) == 0)
+            fprintf('On round %i\n', i);
+        end
     end
     [~, idx] = min(abs(diffs - 2 * pi));
     
+    % Calculate S21^2 for Crange(idx)
+    S21new = subs(S21, 'L', 1 / (w^2 * Crange(idx)));
+    S21a = subs(S21new, 'C', Crange(idx) * (1 + Dm));
+    S21b = subs(S21new, 'C', Crange(idx) * (1 - Dm));
+    fprintf('Phase difference: %i\n', rad2deg(diffs(idx)));
+    fprintf('Power:\n\tP_A (+Dm) = %4.2f\n\tP_A (+Dm) = %4.2f\n', abs(S21a)^2, abs(S21b)^2);
+    
+    if(min(abs(S21a)^2, abs(S21b)^2) > Ptol)
+        fprintf('Done\n');
+        break;
+    end
 end
+
+
 
