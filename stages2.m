@@ -19,8 +19,8 @@
 %% Inputs
 Ptol = 0.5; % Power tolerance
 Dm = 0.2; % Modulation depth as %-tage of C
-Nmax = 30; % Maximum number of stages considered
-Clen = 250; % Number of values used for C
+Nmax = 5; %30 % Maximum number of stages considered
+Clen = 250; %2000 % Number of values used for C
 
 %% Setup
 digits(15); % Used to speed up symbolic calculations, default = 32
@@ -67,7 +67,8 @@ Crange = Zrange / w;
 
 %% Main loop
 diffs = zeros(1,Clen);
-
+phias = diffs;
+phibs = phias;
 for N = 1:Nmax
     ABCD_new = ABCD ^ N;
     S21 = 2/(ABCD_new(1,1)+ABCD_new(1,2)/Z0+ABCD_new(2,1)*Z0+ABCD_new(2,2));
@@ -77,26 +78,36 @@ for N = 1:Nmax
         S21a = subs(S21new, 'C', Crange(i) * (1 + Dm));
         S21b = subs(S21new, 'C', Crange(i) * (1 - Dm));
         
+        phias(i) = rad2deg(vpa(angle(S21a)));
+        phibs(i) = rad2deg(vpa(angle(S21b)));
+        
         diff = double(abs(rad2deg(vpa(angle(S21b) - angle(S21a)))));
         % Find vector of diffs
         diffs(i) = diff;
         if(mod(i, 75) == 0)
-            fprintf('On round %i\n', i);
+            fprintf('On i = %i\n', i);
         end
     end
-    [~, idx] = min(abs(diffs - 2 * pi));
+    [~, idx] = min(abs(diffs - 360));
     
     % Calculate S21^2 for Crange(idx)
     S21new = subs(S21, 'L', 1 / (w^2 * Crange(idx)));
     S21a = subs(S21new, 'C', Crange(idx) * (1 + Dm));
     S21b = subs(S21new, 'C', Crange(idx) * (1 - Dm));
-    fprintf('Phase difference: %i\n', rad2deg(diffs(idx)));
-    fprintf('Power:\n\tP_A (+Dm) = %4.2f\n\tP_A (+Dm) = %4.2f\n', abs(S21a)^2, abs(S21b)^2);
+    fprintf('N = %i Capacitance: C = %e F\n', N, Crange(idx));
+    fprintf('Phase difference (deg): %i\n', diffs(idx));
+    fprintf('Power:\n\tP_A (+Dm) = %4.2f\n\tP_B (+Dm) = %4.2f\n', abs(S21a)^2, abs(S21b)^2);
     
-    if(min(abs(S21a)^2, abs(S21b)^2) > Ptol)
-        fprintf('Done\n');
-        break;
-    end
+    %if(min(abs(S21a)^2, abs(S21b)^2) > Ptol)
+    %    fprintf('Done\n');
+    %    break;
+    %end
+    figure;
+    hold on;
+    plot(1:Clen, phias);
+    plot(1:Clen, phibs);
+    plot(1:Clen, diffs);
+    legend('PHI_A', 'PHI_B', 'DIFF');
 end
 
 
