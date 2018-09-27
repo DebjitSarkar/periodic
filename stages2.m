@@ -19,8 +19,10 @@
 %% Inputs
 Ptol = 0.5; % Power tolerance
 Dm = 0.2; % Modulation depth as %-tage of C
+
 Nmax = 5; %30 % Maximum number of stages considered
 Clen = 250; %2000 % Number of values used for C
+verbose = true; % Printing of statements during code execution
 
 %% Setup
 digits(15); % Used to speed up symbolic calculations, default = 32
@@ -33,7 +35,15 @@ w = 2 * pi * f;
 
 syms L C;
 
-%% One segment ABCD and S-matrix
+%% Storage
+Zrange = linspace(0, 1/10, Clen); % 2000 pts for Z_C = [0,10]
+Crange = Zrange / w; % Capacitance values
+
+phias = zeros(1,Clen); % PHI_A
+phibs = zeros(1,Clen); % PHI_B
+diffs = zeros(1,Clen); % |PHI_B - PHI_A|
+
+%% Unit cell ABCD and S-matrix
 ABCD = [cos(2*BL)+Z0*sin(2*BL)*(1-w^2*L*C)/(2*w*L),...       %A
     1j*Z0*sin(2*BL)+1j*Z0^2*sin(BL)^2*(1-w^2*L*C)/(w*L);...  %B
     1j*Y0*sin(2*BL)-1j*cos(BL)^2*(1-w^2*L*C)/(w*L),...       %C
@@ -46,30 +56,9 @@ q = subs(det(ABCD), 'C', 1e-15);
 qq = subs(q, 'L', 1e-7);
 assert(double(vpa(abs(qq - 1))) < 1e-6, 'Determinant =/= 1');
 
-%%
-Zrange = linspace(0, 1/10, Clen); % 2000 pts for Z_C = [0,10]
-Crange = Zrange / w;
-% Ccurr = 1e-12; % Current value
-%
-% S21new = subs(S21, 'L', 1 / (w^2 * Ccurr));
-%
-% S21a = subs(S21new, 'C', Ccurr * (1 + Dm));
-% S21b = subs(S21new, 'C', Ccurr * (1 - Dm));
-%
-% phia = angle(S21a);
-% phib = angle(S21b);
-%
-% diff = double(abs(rad2deg(vpa(phib - phia))));
-% diff
-
-% for each n, find optimal c for 360 degrees
-% increase n until you reach the power tolerance
-
 %% Main loop
-diffs = zeros(1,Clen);
-phias = diffs;
-phibs = phias;
-for N = 1:Nmax
+for N = 6:10 %1:Nmax
+    fprintf('\n========== N=%i ==========\n', N);
     ABCD_new = ABCD ^ N;
     S21 = 2/(ABCD_new(1,1)+ABCD_new(1,2)/Z0+ABCD_new(2,1)*Z0+ABCD_new(2,2));
     for i = 1:Clen
@@ -81,34 +70,43 @@ for N = 1:Nmax
         phias(i) = rad2deg(vpa(angle(S21a)));
         phibs(i) = rad2deg(vpa(angle(S21b)));
         
-        diff = double(abs(rad2deg(vpa(angle(S21b) - angle(S21a)))));
+        %diff = double(abs(rad2deg(vpa(angle(S21b) - angle(S21a)))));
         % Find vector of diffs
-        diffs(i) = diff;
-        if(mod(i, 75) == 0)
-            fprintf('On i = %i\n', i);
+        %diffs(i) = diff;
+        
+        if(verbose && mod(i, 75) == 0) % Check that code is running
+            fprintf('i = %i\n', i);
         end
     end
+    
+    diffs = rad2deg(unwrap(abs(unwrap(deg2rad(phibs) - deg2rad(phias)))));
+    
     [~, idx] = min(abs(diffs - 360));
+    Copt = Crange(idx);  % Optimal value for C
     
-    % Calculate S21^2 for Crange(idx)
-    S21new = subs(S21, 'L', 1 / (w^2 * Crange(idx)));
-    S21a = subs(S21new, 'C', Crange(idx) * (1 + Dm));
-    S21b = subs(S21new, 'C', Crange(idx) * (1 - Dm));
-    fprintf('N = %i Capacitance: C = %e F\n', N, Crange(idx));
-    fprintf('Phase difference (deg): %i\n', diffs(idx));
-    fprintf('Power:\n\tP_A (+Dm) = %4.2f\n\tP_B (+Dm) = %4.2f\n', abs(S21a)^2, abs(S21b)^2);
+    % S21 calculations for Copt
+    S21new = subs(S21, 'L', 1 / (w^2 * Copt));
+    S21a = subs(S21new, 'C', Copt * (1 + Dm));
+    S21b = subs(S21new, 'C', Copt * (1 - Dm));
     
+    fprintf('Capacitance: C = %e F\n', Copt);
+    fprintf('Phase difference (deg): %f\n', diffs(idx));
+    fprintf('Power:\n\tP_A (+Dm) = %4.2f dB\n\tP_B (-Dm) = %4.2f dB\n', db(abs(S21a)^2,'power'), db(abs(S21b)^2,'power'));
     %if(min(abs(S21a)^2, abs(S21b)^2) > Ptol)
     %    fprintf('Done\n');
     %    break;
     %end
+    
     figure;
     hold on;
-    plot(1:Clen, phias);
-    plot(1:Clen, phibs);
+    plot(1:Clen, unwrap(phias));
+    plot(1:Clen, unwrap(phibs));
     plot(1:Clen, diffs);
     legend('PHI_A', 'PHI_B', 'DIFF');
 end
 
-
+%% TODO
+% Add the Ptol check + break
+% Remove symbolic portions to speed up code
+% Keep power in dB
 
