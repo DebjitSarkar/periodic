@@ -22,7 +22,9 @@ Dm = 0.2; % Modulation depth as %-tage of C
 
 Nmax = 5; %30 % Maximum number of stages considered
 Clen = 250; %2000 % Number of values used for C
+phase_err = 0.2; % Degrees away from 360 for total phase shift
 verbose = true; % Printing of statements during code execution
+verbose_check = 75; % How often to print statements
 
 %% Setup
 digits(15); % Used to speed up symbolic calculations, default = 32
@@ -57,7 +59,7 @@ qq = subs(q, 'L', 1e-7);
 assert(double(vpa(abs(qq - 1))) < 1e-6, 'Determinant =/= 1');
 
 %% Main loop
-for N = 6:10 %1:Nmax
+for N = 1:7 %6:10 %1:Nmax
     fprintf('\n========== N=%i ==========\n', N);
     ABCD_new = ABCD ^ N;
     S21 = 2/(ABCD_new(1,1)+ABCD_new(1,2)/Z0+ABCD_new(2,1)*Z0+ABCD_new(2,2));
@@ -67,19 +69,18 @@ for N = 6:10 %1:Nmax
         S21a = subs(S21new, 'C', Crange(i) * (1 + Dm));
         S21b = subs(S21new, 'C', Crange(i) * (1 - Dm));
         
-        phias(i) = rad2deg(vpa(angle(S21a)));
-        phibs(i) = rad2deg(vpa(angle(S21b)));
+        phias(i) = vpa(angle(S21a)); % radians
+        phibs(i) = vpa(angle(S21b));
         
-        %diff = double(abs(rad2deg(vpa(angle(S21b) - angle(S21a)))));
-        % Find vector of diffs
-        %diffs(i) = diff;
-        
-        if(verbose && mod(i, 75) == 0) % Check that code is running
+        if(verbose && mod(i, verbose_check) == 0) % Check that code is running
             fprintf('i = %i\n', i);
         end
     end
     
-    diffs = rad2deg(unwrap(abs(unwrap(deg2rad(phibs) - deg2rad(phias)))));
+    phias = rad2deg(unwrap(phias)); % degrees
+    phibs = rad2deg(unwrap(phibs));
+    
+    diffs = abs(phibs - phias);
     
     [~, idx] = min(abs(diffs - 360));
     Copt = Crange(idx);  % Optimal value for C
@@ -90,23 +91,19 @@ for N = 6:10 %1:Nmax
     S21b = subs(S21new, 'C', Copt * (1 - Dm));
     
     fprintf('Capacitance: C = %e F\n', Copt);
-    fprintf('Phase difference (deg): %f\n', diffs(idx));
+    fprintf('Phase difference: %f deg\n', diffs(idx));
     fprintf('Power:\n\tP_A (+Dm) = %4.2f dB\n\tP_B (-Dm) = %4.2f dB\n', db(abs(S21a)^2,'power'), db(abs(S21b)^2,'power'));
-    %if(min(abs(S21a)^2, abs(S21b)^2) > Ptol)
-    %    fprintf('Done\n');
-    %    break;
-    %end
     
     figure;
     hold on;
-    plot(1:Clen, unwrap(phias));
-    plot(1:Clen, unwrap(phibs));
+    plot(1:Clen, phias);
+    plot(1:Clen, phibs);
     plot(1:Clen, diffs);
     legend('PHI_A', 'PHI_B', 'DIFF');
+    
+    if(abs(diffs(idx) - 360) < phase_err && min(abs(S21a)^2, abs(S21b)^2) > Ptol)
+        fprintf('Done\n');
+        break;
+    end
 end
-
-%% TODO
-% Add the Ptol check + break
-% Remove symbolic portions to speed up code
-% Keep power in dB
 
