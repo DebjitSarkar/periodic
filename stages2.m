@@ -20,7 +20,7 @@
 Ptol = 0.5; % Power tolerance
 Dm = 0.2; % Modulation depth as %-tage of C
 
-Nmax = 5; %30 % Maximum number of stages considered
+Nmax = 8; %30 % Maximum number of stages considered
 Clen = 250; %2000 % Number of values used for C
 phase_err = 0.2; % Degrees away from 360 for total phase shift
 verbose = true; % Printing of statements during code execution
@@ -59,7 +59,7 @@ qq = subs(q, 'L', 1e-7);
 assert(double(vpa(abs(qq - 1))) < 1e-6, 'Determinant =/= 1');
 
 %% Main loop
-for N = 1:7 %6:10 %1:Nmax
+for N = 1:Nmax
     fprintf('\n========== N=%i ==========\n', N);
     ABCD_new = ABCD ^ N;
     S21 = 2/(ABCD_new(1,1)+ABCD_new(1,2)/Z0+ABCD_new(2,1)*Z0+ABCD_new(2,2));
