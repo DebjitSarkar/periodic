@@ -22,7 +22,7 @@ Dm = 0.2; % Modulation depth as %-tage of C
 
 Nmax = 8; %30 % Maximum number of stages considered
 Clen = 250; %2000 % Number of values used for C
-phase_err = 0.2; % Degrees away from 360 for total phase shift
+phase_err = 0.5; % Degrees away from 360 for total phase shift
 verbose = true; % Printing of statements during code execution
 verbose_check = 75; % How often to print statements
 
@@ -101,9 +101,14 @@ for N = 1:Nmax
     plot(1:Clen, diffs);
     legend('PHI_A', 'PHI_B', 'DIFF');
     
+    % Fix the abs(diffs(idx)... statement
     if(abs(diffs(idx) - 360) < phase_err && min(abs(S21a)^2, abs(S21b)^2) > Ptol)
         fprintf('Done\n');
         break;
     end
 end
+
+
+%% TODO
+% Change the unit cell to TANK + lambda/4 + TANK
 
