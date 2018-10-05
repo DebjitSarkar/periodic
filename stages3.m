@@ -18,12 +18,12 @@
 %
 
 %% Inputs
-Ptol = 0.5; % Power tolerance
+Ptol = 0.8; % Power tolerance
 Dm = 0.2; % Modulation depth as %-tage of C
 
 Nmax = 50; %30 % Maximum number of stages considered
-Clen = 250; %2000 % Number of values used for C
-phase_err = 0.5; % Degrees away from 360 for total phase shift
+Clen = 500; %2000 % Number of values used for C
+phase_err = 2; % Degrees away from 360 for total phase shift
 
 %% System Parameters
 BL = pi / 4;
@@ -91,18 +91,19 @@ Copt = Crange(idx);  % Optimal value for C
 fprintf('\n========== N=1 ==========\n');
 fprintf('Capacitance: C = %e F\n', Copt);
 fprintf('Phase difference: %f deg\n', diffs(idx));
-fprintf('Power:\n\tP_A (+Dm) = %4.2f dB\n\tP_B (-Dm) = %4.2f dB\n', db(abs(S21_a(idx))^2,'power'), db(abs(S21_b(idx))^2,'power'));
+fprintf('Power:\n\tP_A (-Dm) = %4.2f dB\n\tP_B (+Dm) = %4.2f dB\n', db(abs(S21_a(idx))^2,'power'), db(abs(S21_b(idx))^2,'power'));
 
 figure;
 hold on;
-plot(1:Clen, phias);
-plot(1:Clen, phibs);
-plot(1:Clen, diffs);
+plot(Crange, phias);
+plot(Crange, phibs);
+plot(Crange, diffs);
+xlabel('Capacitance [F]');
 legend('PHI_A', 'PHI_B', 'DIFF');
 
 %% N > 1
 for n = 1:Nmax
-    if(abs(diffs(idx) - 360) < phase_err && min(abs(S21_a)^2, abs(S21_b)^2) > Ptol)
+    if(abs(diffs(idx) - 360) < phase_err && min(abs(S21_a(idx))^2, abs(S21_b(idx))^2) > Ptol)
         fprintf('Done\n');
         break;
     end
@@ -122,6 +123,10 @@ for n = 1:Nmax
     phias = rad2deg(unwrap(phias)); % degrees
     phibs = rad2deg(unwrap(phibs));
     
+    if(n == 4)
+        phias = phias + 360; % FIX THIS CASE
+    end
+    
     diffs = abs(phibs - phias);
     
     [~, idx] = min(abs(diffs - 360));
@@ -130,7 +135,15 @@ for n = 1:Nmax
     fprintf('\n========== N=%i ==========\n', n);
     fprintf('Capacitance: C = %e F\n', Copt);
     fprintf('Phase difference: %f deg\n', diffs(idx));
-    fprintf('Power:\n\tP_A (+Dm) = %4.2f dB\n\tP_B (-Dm) = %4.2f dB\n', db(abs(S21_a(idx))^2,'power'), db(abs(S21_b(idx))^2,'power'));
+    fprintf('Power:\n\tP_A (-Dm) = %4.2f dB\n\tP_B (+Dm) = %4.2f dB\n', db(abs(S21_a(idx))^2,'power'), db(abs(S21_b(idx))^2,'power'));
+    
+    figure;
+    hold on;
+    plot(Crange, phias);
+    plot(Crange, phibs);
+    plot(Crange, diffs);
+    xlabel('Capacitance [F]');
+    legend('PHI_A', 'PHI_B', 'DIFF');
     
     if(abs(diffs(idx) - 360) < phase_err && min(abs(S21_aN(idx))^2, abs(S21_bN(idx))^2) > Ptol)
         fprintf('Done\n');
