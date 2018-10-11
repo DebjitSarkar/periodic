@@ -1,7 +1,7 @@
 % Debjit Sarkar
 % October 2018
 
-clear; clc;
+%clear; clc;
 %% Structure
 %
 % ______Bd/2_______Bd/2______
@@ -20,7 +20,7 @@ Y2 = y(2);
 
 %% Verification
 Z0 = 50; Y0 = 1/Z0;
-betad = pi/10;
+betad = pi/10; % lambda / 20
 tl = [cos(betad/2), 1j*Z0*sin(betad/2);
     1j*Y0*sin(betad/2), cos(betad/2)];
 ABCD_tot = [1,0;Y1,1]*tl*[1,0;Y2,1]*tl*[1,0;Y1,1];
