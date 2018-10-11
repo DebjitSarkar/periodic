@@ -6,7 +6,7 @@
 
 %% Structure
 %
-%  ____________45deg____________
+%  ____________90deg____________
 %    |     -------------     |
 %  -----     |       |     -----
 %  |   |    GND     GND    |   |
@@ -21,12 +21,12 @@
 Ptol = 0.8; % Power tolerance
 Dm = 0.2; % Modulation depth as %-tage of C
 
-Nmax = 50; %30 % Maximum number of stages considered
+Nmax = 5; %30 % Maximum number of stages considered
 Clen = 500; %2000 % Number of values used for C
 phase_err = 2; % Degrees away from 360 for total phase shift
 
 %% System Parameters
-BL = pi / 4;
+BL = pi / 2;
 Z0 = 50;
 Y0 = 1 / Z0;
 f = 10e9;
@@ -103,10 +103,10 @@ legend('PHI_A', 'PHI_B', 'DIFF');
 
 %% N > 1
 for n = 1:Nmax
-    if(abs(diffs(idx) - 360) < phase_err && min(abs(S21_a(idx))^2, abs(S21_b(idx))^2) > Ptol)
-        fprintf('Done\n');
-        break;
-    end
+%     if(abs(diffs(idx) - 360) < phase_err && min(abs(S21_a(idx))^2, abs(S21_b(idx))^2) > Ptol)
+%         fprintf('Done\n');
+%         break;
+%     end
     for i = 1:Clen
         ABCD_aN(:,:,i) = ABCD_a(:,:,i)^n;
         ABCD_0N(:,:,i) = ABCD_0(:,:,i)^n;
@@ -145,9 +145,9 @@ for n = 1:Nmax
     xlabel('Capacitance [F]');
     legend('PHI_A', 'PHI_B', 'DIFF');
     
-    if(abs(diffs(idx) - 360) < phase_err && min(abs(S21_aN(idx))^2, abs(S21_bN(idx))^2) > Ptol)
-        fprintf('Done\n');
-        break;
-    end
+    %if(abs(diffs(idx) - 360) < phase_err && min(abs(S21_aN(idx))^2, abs(S21_bN(idx))^2) > Ptol)
+    %    fprintf('Done\n');
+    %    break;
+    %end
 end
 
